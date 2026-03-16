@@ -33,6 +33,18 @@ final class UsageService {
         didSet { UserDefaults.standard.set(showPercentage, forKey: "showPercentage") }
     }
 
+    var showSessionPercent: Bool {
+        didSet { UserDefaults.standard.set(showSessionPercent, forKey: "showSessionPercent") }
+    }
+
+    var showWeeklyPercent: Bool {
+        didSet { UserDefaults.standard.set(showWeeklyPercent, forKey: "showWeeklyPercent") }
+    }
+
+    var showSonnetPercent: Bool {
+        didSet { UserDefaults.standard.set(showSonnetPercent, forKey: "showSonnetPercent") }
+    }
+
     var refreshInterval: Int {
         didSet {
             UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
@@ -80,6 +92,9 @@ final class UsageService {
     init() {
         let defaults = UserDefaults.standard
         showPercentage = defaults.object(forKey: "showPercentage") as? Bool ?? true
+        showSessionPercent = defaults.object(forKey: "showSessionPercent") as? Bool ?? true
+        showWeeklyPercent = defaults.object(forKey: "showWeeklyPercent") as? Bool ?? false
+        showSonnetPercent = defaults.object(forKey: "showSonnetPercent") as? Bool ?? false
         refreshInterval = defaults.object(forKey: "refreshInterval") as? Int ?? 60
         notifyAt50 = defaults.object(forKey: "notifyAt50") as? Bool ?? true
         notifyAt75 = defaults.object(forKey: "notifyAt75") as? Bool ?? true

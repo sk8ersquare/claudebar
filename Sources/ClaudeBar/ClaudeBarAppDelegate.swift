@@ -61,16 +61,32 @@ final class ClaudeBarAppDelegate: NSObject, NSApplicationDelegate, UNUserNotific
 
     private func updateMenuBarButton() {
         guard let button = statusItem.button else { return }
+
         let attachment = NSTextAttachment()
         attachment.image = NSImage(systemSymbolName: "gauge.medium", accessibilityDescription: "Usage")
         let attrString = NSMutableAttributedString(attachment: attachment)
 
-        if service.showPercentage, let percent = service.usage?.fiveHour?.percent {
-            let percentStr = NSAttributedString(
-                string: " \(percent)%",
-                attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)]
+        let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        var parts: [String] = []
+
+        if service.showPercentage {
+            if service.showSessionPercent, let p = service.usage?.fiveHour?.percent {
+                parts.append("S:\(p)%")
+            }
+            if service.showWeeklyPercent, let p = service.usage?.sevenDay?.percent {
+                parts.append("W:\(p)%")
+            }
+            if service.showSonnetPercent, let p = service.usage?.sevenDaySonnet?.percent {
+                parts.append("♠:\(p)%")
+            }
+        }
+
+        if !parts.isEmpty {
+            let label = NSAttributedString(
+                string: " " + parts.joined(separator: "  "),
+                attributes: [.font: font]
             )
-            attrString.append(percentStr)
+            attrString.append(label)
         }
 
         button.attributedTitle = attrString

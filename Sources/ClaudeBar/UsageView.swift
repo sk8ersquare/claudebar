@@ -282,7 +282,7 @@ struct UsageView: View {
 
                 Spacer()
 
-                Text("v1.2.0")
+                Text("v1.3.0")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -309,13 +309,43 @@ struct UsageView: View {
                 .controlSize(.small)
             }
             
-            SettingsRow(title: L("settings.show_percentage")) {
+            SettingsRow(title: "Show % in menu bar") {
                 Toggle("", isOn: Binding(
                     get: { service.showPercentage },
                     set: { service.showPercentage = $0 }
                 ))
                 .toggleStyle(.switch)
                 .controlSize(.small)
+            }
+
+            if service.showPercentage {
+                VStack(spacing: 6) {
+                    SettingsRow(title: "  Session (S:)") {
+                        Toggle("", isOn: Binding(
+                            get: { service.showSessionPercent },
+                            set: { service.showSessionPercent = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    }
+                    SettingsRow(title: "  Weekly (W:)") {
+                        Toggle("", isOn: Binding(
+                            get: { service.showWeeklyPercent },
+                            set: { service.showWeeklyPercent = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    }
+                    SettingsRow(title: "  Sonnet (♠:)") {
+                        Toggle("", isOn: Binding(
+                            get: { service.showSonnetPercent },
+                            set: { service.showSonnetPercent = $0 }
+                        ))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    }
+                }
+                .transition(.opacity)
             }
             
             SettingsRow(title: L("settings.language")) {
