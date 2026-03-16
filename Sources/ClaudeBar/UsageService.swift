@@ -127,6 +127,14 @@ final class UsageService {
             // Token expired, try refresh
             await handleTokenRefresh(credentials: credentials)
 
+        case .rateLimited(let retryAfter):
+            let mins = Int(ceil(retryAfter / 60))
+            if mins > 1 {
+                error = "Rate limited — retrying in \(mins)m"
+            } else {
+                error = "Rate limited — retrying shortly"
+            }
+
         case .error(let message):
             error = message
         }
@@ -137,12 +145,23 @@ final class UsageService {
     private enum APIResult {
         case success(Data)
         case unauthorized
+        case rateLimited(retryAfter: TimeInterval)
         case error(String)
     }
+
+    // MARK: - Rate limit state
+    private var rateLimitedUntil: Date? = nil
+    private var consecutiveRateLimits: Int = 0
 
     private func fetchUsage(token: String) async -> APIResult {
         guard let url = URL(string: usageURL) else {
             return .error(L("error.invalid_url"))
+        }
+
+        // Respect rate limit backoff
+        if let until = rateLimitedUntil, until > Date() {
+            let wait = until.timeIntervalSinceNow
+            return .rateLimited(retryAfter: wait)
         }
 
         var request = URLRequest(url: url)
@@ -154,12 +173,26 @@ final class UsageService {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let httpResponse = response as? HTTPURLResponse
+            let status = httpResponse?.statusCode ?? 0
 
             switch status {
-            case 200: return .success(data)
-            case 401: return .unauthorized
-            default: return .error(L("error.http", status))
+            case 200:
+                rateLimitedUntil = nil
+                consecutiveRateLimits = 0
+                return .success(data)
+            case 401:
+                return .unauthorized
+            case 429:
+                // Respect Retry-After header, or use exponential backoff
+                consecutiveRateLimits += 1
+                let serverRetry = httpResponse?.value(forHTTPHeaderField: "Retry-After")
+                    .flatMap { Double($0) }
+                let backoff = serverRetry ?? min(60.0 * Double(consecutiveRateLimits), 600.0)
+                rateLimitedUntil = Date().addingTimeInterval(backoff)
+                return .rateLimited(retryAfter: backoff)
+            default:
+                return .error(L("error.http", status))
             }
         } catch {
             return .error(error.localizedDescription)
