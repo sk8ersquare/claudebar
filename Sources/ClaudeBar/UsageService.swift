@@ -334,6 +334,8 @@ final class UsageService {
                 try? await Task.sleep(for: .seconds(self?.refreshInterval ?? 60))
                 guard !Task.isCancelled else { break }
                 await self?.refresh()
+                // Keep notification badge in sync (auto-clears if user enables in System Settings)
+                await self?.refreshNotificationStatus()
             }
         }
     }
@@ -347,51 +349,64 @@ final class UsageService {
 
     private(set) var notificationsAuthorized: Bool = false
 
+    /// Checks current notification auth status and updates `notificationsAuthorized`.
+    /// Always call this after any permission interaction.
+    func refreshNotificationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationsAuthorized = settings.authorizationStatus == .authorized
+    }
+
+    /// Called on launch — requests permission if not yet determined, then refreshes status.
     private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
-            DispatchQueue.main.async {
-                self?.notificationsAuthorized = granted
+        Task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             }
+            await refreshNotificationStatus()
         }
-        // Also check current status (handles the case where permission was previously set)
-        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
-            DispatchQueue.main.async {
-                self?.notificationsAuthorized = settings.authorizationStatus == .authorized
+    }
+
+    /// Called by the Enable/Test button in Settings.
+    func handleNotificationButtonTap() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional:
+            // Already good — fire test notifications
+            fireTestNotifications()
+        case .denied:
+            // Can't prompt again — send user to System Settings
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
+            // Poll for up to 30s in case they flip it on and come back
+            Task {
+                for _ in 0..<30 {
+                    try? await Task.sleep(for: .seconds(1))
+                    await refreshNotificationStatus()
+                    if notificationsAuthorized { break }
+                }
             }
+        default:
+            // Not determined — show system prompt
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+            await refreshNotificationStatus()
+            if granted { fireTestNotifications() }
         }
     }
 
     func sendTestNotification() {
-        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
-            guard let self else { return }
-            switch settings.authorizationStatus {
-            case .authorized, .provisional:
-                let resetTime = self.formatResetTime(hours: 2, minutes: 34)
-                self.sendNotification(title: L("notification.50_title"), body: L("notification.test_50_body"))
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                    self?.sendNotification(title: L("notification.75_title"), body: L("notification.test_75_body"))
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                    self?.sendNotification(title: L("notification.limit_title"), body: L("notification.test_limit_body", resetTime))
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
-                    self?.sendNotification(title: L("notification.reset_title"), body: L("notification.test_reset_body"))
-                }
-            case .denied:
-                // Open System Settings so user can enable notifications
-                DispatchQueue.main.async {
-                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
-                }
-            default:
-                // Not determined — request permission then retry
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
-                    if granted {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self?.sendTestNotification()
-                        }
-                    }
-                }
-            }
+        Task { await handleNotificationButtonTap() }
+    }
+
+    private func fireTestNotifications() {
+        let resetTime = formatResetTime(hours: 2, minutes: 34)
+        sendNotification(title: L("notification.50_title"), body: L("notification.test_50_body"))
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            sendNotification(title: L("notification.75_title"), body: L("notification.test_75_body"))
+            try? await Task.sleep(for: .seconds(1.5))
+            sendNotification(title: L("notification.limit_title"), body: L("notification.test_limit_body", resetTime))
+            try? await Task.sleep(for: .seconds(1.5))
+            sendNotification(title: L("notification.reset_title"), body: L("notification.test_reset_body"))
         }
     }
 
