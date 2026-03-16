@@ -352,7 +352,16 @@ struct UsageView: View {
                 Text(L("settings.notifications"))
                     .font(.system(size: 12, weight: .medium))
                 Spacer()
-                Button(L("settings.test")) {
+                if !service.notificationsAuthorized {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bell.slash")
+                            .font(.system(size: 10))
+                        Text("Blocked")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(.orange)
+                }
+                Button(service.notificationsAuthorized ? L("settings.test") : "Enable") {
                     service.sendTestNotification()
                 }
                 .buttonStyle(.bordered)

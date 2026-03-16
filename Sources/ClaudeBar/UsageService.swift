@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Security
 import UserNotifications
@@ -344,25 +345,53 @@ final class UsageService {
 
     // MARK: - Notifications (UNUserNotificationCenter)
 
+    private(set) var notificationsAuthorized: Bool = false
+
     private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
+            DispatchQueue.main.async {
+                self?.notificationsAuthorized = granted
+            }
+        }
+        // Also check current status (handles the case where permission was previously set)
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                self?.notificationsAuthorized = settings.authorizationStatus == .authorized
+            }
+        }
     }
 
     func sendTestNotification() {
-        let resetTime = formatResetTime(hours: 2, minutes: 34)
-
-        sendNotification(title: L("notification.50_title"), body: L("notification.test_50_body"))
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.sendNotification(title: L("notification.75_title"), body: L("notification.test_75_body"))
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            self?.sendNotification(title: L("notification.limit_title"), body: L("notification.test_limit_body", resetTime))
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
-            self?.sendNotification(title: L("notification.reset_title"), body: L("notification.test_reset_body"))
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            guard let self else { return }
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                let resetTime = self.formatResetTime(hours: 2, minutes: 34)
+                self.sendNotification(title: L("notification.50_title"), body: L("notification.test_50_body"))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                    self?.sendNotification(title: L("notification.75_title"), body: L("notification.test_75_body"))
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                    self?.sendNotification(title: L("notification.limit_title"), body: L("notification.test_limit_body", resetTime))
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in
+                    self?.sendNotification(title: L("notification.reset_title"), body: L("notification.test_reset_body"))
+                }
+            case .denied:
+                // Open System Settings so user can enable notifications
+                DispatchQueue.main.async {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
+                }
+            default:
+                // Not determined — request permission then retry
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] granted, _ in
+                    if granted {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self?.sendTestNotification()
+                        }
+                    }
+                }
+            }
         }
     }
 
