@@ -1,17 +1,22 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 /// App delegate that manages the menu bar status item and popover.
 ///
 /// Uses NSStatusItem + NSPopover instead of MenuBarExtra to ensure
 /// the popover always appears directly below the menu bar icon.
 @MainActor
-final class ClaudeBarAppDelegate: NSObject, NSApplicationDelegate {
+final class ClaudeBarAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     let service = UsageService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Must set delegate BEFORE requesting permission — required for
+        // LSUIElement (menu bar) apps to actually receive/display notifications
+        UNUserNotificationCenter.current().delegate = self
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateMenuBarButton()
 
@@ -70,6 +75,19 @@ final class ClaudeBarAppDelegate: NSObject, NSApplicationDelegate {
 
         button.attributedTitle = attrString
     }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    /// Show notifications even when the app is frontmost (required for menu bar apps)
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .list])
+    }
+
+    // MARK: - Private
 
     private func observeServiceChanges() {
         Task { @MainActor [weak self] in
