@@ -3,28 +3,10 @@ import SwiftUI
 /// Menu bar application for monitoring Claude usage limits
 @main
 struct ClaudeBarApp: App {
-    @State private var service = UsageService()
-    
+    @NSApplicationDelegateAdaptor(ClaudeBarAppDelegate.self) private var appDelegate
+
     var body: some Scene {
-        MenuBarExtra {
-            UsageView()
-                .environment(service)
-        } label: {
-            menuBarLabel
-        }
-        .menuBarExtraStyle(.window)
-    }
-    
-    /// Menu bar icon with current session usage percentage
-    private var menuBarLabel: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "gauge.medium")
-            
-            if service.showPercentage, let percent = service.usage?.fiveHour?.percent {
-                Text("\(percent)%")
-                    .font(.caption2)
-                    .monospacedDigit()
-            }
-        }
+        // No visible scenes — everything is driven by the AppDelegate's NSStatusItem + NSPopover
+        Settings { EmptyView() }
     }
 }
