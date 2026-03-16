@@ -205,11 +205,10 @@ struct UsageView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L("about.created_by"))
-                    .font(.system(size: 11))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Original")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                
                 if let url = URL(string: "https://github.com/kemalasliyuksek") {
                     Link(destination: url) {
                         HStack(spacing: 6) {
@@ -222,23 +221,53 @@ struct UsageView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
                 }
+
+                Text("Updates & improvements")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                if let url = URL(string: "https://github.com/sk8ersquare") {
+                    Link(destination: url) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 10))
+                            Text("sk8ersquare")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                }
             }
-            
+
             HStack(spacing: 12) {
-                if let url = URL(string: "https://github.com/kemalasliyuksek/claudebar") {
+                if let url = URL(string: "https://github.com/sk8ersquare/claudebar") {
                     Link(destination: url) {
                         HStack(spacing: 4) {
                             Image(systemName: "link")
                                 .font(.system(size: 10))
-                            Text(L("about.github"))
+                            Text("Fork on GitHub")
                                 .font(.system(size: 11))
                         }
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 }
-                
-                if let url = URL(string: "https://github.com/kemalasliyuksek/claudebar/issues") {
+
+                if let url = URL(string: "https://github.com/kemalasliyuksek/claudebar") {
+                    Link(destination: url) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 10))
+                            Text("Original")
+                                .font(.system(size: 11))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+
+                if let url = URL(string: "https://github.com/sk8ersquare/claudebar/issues") {
                     Link(destination: url) {
                         HStack(spacing: 4) {
                             Image(systemName: "exclamationmark.bubble")
@@ -250,10 +279,10 @@ struct UsageView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                 }
-                
+
                 Spacer()
-                
-                Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0")")
+
+                Text("v1.1.0")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -409,14 +438,19 @@ struct UsageView: View {
             .focusable(false)
 
             Button {
-                Task { await service.refresh() }
+                Task { await service.forceRefresh() }
             } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11))
+                if service.isLoading {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                }
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
             .focusable(false)
+            .disabled(service.isLoading)
             
             Button {
                 NSApplication.shared.terminate(nil)
@@ -460,10 +494,34 @@ struct UsageView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        Text(message)
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .padding(20)
+        let isRateLimited = message.lowercased().contains("rate limited")
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: isRateLimited ? "clock.badge.exclamationmark" : "exclamationmark.triangle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(isRateLimited ? .orange : .red)
+                Text(isRateLimited ? "Rate Limited" : "Error")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            if isRateLimited {
+                Text("The Anthropic API has temporarily limited requests. This will resolve automatically — no action needed.\n\n\(message)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Retry Now") {
+                    Task { await service.forceRefresh() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            } else {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }
 

@@ -100,6 +100,13 @@ final class UsageService {
 
     // MARK: - Public Methods
 
+    /// Force-refresh: clears any rate limit backoff and fetches immediately
+    func forceRefresh() async {
+        rateLimitedUntil = nil
+        consecutiveRateLimits = 0
+        await refresh()
+    }
+
     /// Fetches latest usage data from API
     func refresh() async {
         guard !isLoading else { return }
